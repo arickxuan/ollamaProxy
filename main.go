@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -75,56 +74,10 @@ func toClaudeRequest(input []OllamaMessage) []ClaudeMessageItem {
 	return msg
 }
 
-func ClaudeBlockToOllamaResponse(input []byte, req OllamaChatRequest) (*OllamaResponse, error) {
-	msg := OllamaResponse{}
-	claudeResponse := ClaudeBlockResponse{}
-	if len(input) < 6 {
-		return nil, nil
-	}
-	log.Println("Received request:", string(input[6:]))
-	err := json.Unmarshal(input[6:], &claudeResponse)
-	if err != nil {
-		return nil, err
-	}
-	if claudeResponse.Type == "content_block_stop" || claudeResponse.Type == "message_stop" {
-		msg.Done = true
-		msg.Model = req.Model
-		msg.CreatedAt = time.Now().UTC().Format(time.RFC3339Nano)
-		msg.Message = OllamaMessage{
-			Role:    "assistant",
-			Content: "",
-		}
-		msg.DoneReason = "stop"
-		msg.TotalDuration = 13937866250
-		msg.LoadDuration = 5978299625
-		msg.PromptEvalCount = 9
-		msg.PromptEvalDuration = 3912791542
-		msg.EvalCount = 12
-		msg.EvalDuration = 10937866250
-		return &msg, err
-	}
-	if claudeResponse.Type == "message_start" || claudeResponse.Type == "content_block_start" {
-		msg.Done = false
-		return nil, err
-	}
-	if claudeResponse.Delta == nil {
-		return nil, err
-	}
-	msg.Model = req.Model
-	msg.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-	msg.Message = OllamaMessage{
-		Role:    "assistant",
-		Content: claudeResponse.Delta.Text,
-	}
-	msg.Done = false
-	return &msg, nil
-}
-
 func getModels(c *gin.Context) {
-	log.Println("收到 /api/tags 请求")
+	log.Println("收到 /api/tags 请求 ChatType:", XConfig.ChatType)
 	var models []map[string]interface{}
 	if XConfig != nil && XConfig.Mock {
-
 		for _, name := range enabledModels {
 			family := strings.Split(name, "-")[0]
 			model := map[string]interface{}{
@@ -143,10 +96,62 @@ func getModels(c *gin.Context) {
 			}
 			models = append(models, model)
 		}
-		c.JSON(http.StatusOK, gin.H{"models": models})
-		return
-	}
+	} else if XConfig != nil && XConfig.ChatType == "dify" {
+		for key, _ := range XConfig.DifyAppMap {
+			family := strings.Split(key, "-")[0]
+			model := map[string]interface{}{
+				"name":        key,
+				"model":       key,
+				"modified_at": time.Now().UTC().Format(time.RFC3339),
+				"size":        rand.Int63n(1e10),
+				"digest":      RandString(12),
+				"details": map[string]interface{}{
+					"format":             "unknown",
+					"family":             family,
+					"families":           []string{family},
+					"parameter_size":     "unknown",
+					"quantization_level": "unknown",
+				},
+			}
+			models = append(models, model)
+		}
+	} else {
+		var models []map[string]interface{}
+		list, err := getModelsByUrl()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"models": models})
+		}
+		for _, v := range list.Data {
+			family := ""
+			arr := strings.Split(v.ID, "-")
+			if len(arr) > 0 {
+				family = arr[0]
+			} else {
+				arr := strings.Split(v.ID, " ")
+				if len(arr) > 0 {
+					family = arr[0]
+				}
+			}
 
+			model := map[string]interface{}{
+				"name":        v.ID,
+				"model":       v.ID,
+				"modified_at": time.Now().UTC().Format(time.RFC3339),
+				"size":        rand.Int63n(1e10),
+				"digest":      RandString(12),
+				"details": map[string]interface{}{
+					"format":             "unknown",
+					"family":             family,
+					"families":           []string{family},
+					"parameter_size":     "unknown",
+					"quantization_level": "unknown",
+				},
+			}
+			models = append(models, model)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"models": models})
+	return
 }
 
 func chatHandlerSteam(c *gin.Context) {
@@ -171,14 +176,8 @@ func chatHandlerSteam(c *gin.Context) {
 	}
 	//log.Println("Received request:", input)
 
-	// 构造 Claude API 请求
-	claudeReq := ClaudeRequest{
-		Model:     XConfig.Model,
-		Messages:  toClaudeRequest(input.Messages),
-		Stream:    true,
-		MaxTokens: 1024,
-	}
-	payload, err := json.Marshal(claudeReq)
+	// 构造 API 请求
+	payload, err := GenRequest(&input)
 	if err != nil {
 		log.Println("Encode error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request"})
@@ -191,7 +190,12 @@ func chatHandlerSteam(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+XConfig.APIKey)
+	if XConfig.ChatType == "dify" {
+		//log.Println("current DifyToken:", XConfig.DifyToken)
+		req.Header.Set("Authorization", "Bearer "+XConfig.DifyToken)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+XConfig.APIKey)
+	}
 	req.Header.Set("x-api-key", XConfig.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
@@ -201,11 +205,11 @@ func chatHandlerSteam(c *gin.Context) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Println("Request error:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Claude API request failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API request failed"})
 		return
 	}
 	defer resp.Body.Close()
-	log.Println("Claude API response status:", resp.Status, ClaudeAPIURL, string(payload))
+	log.Println("Claude API response status:", resp.Status, XConfig.APIURL, string(payload))
 
 	// 设置为流式响应
 	// c.Header("content-Type", "text/event-stream")
@@ -216,19 +220,14 @@ func chatHandlerSteam(c *gin.Context) {
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		fmt.Println("收到一行:", string(line))
-
-		re, err := ClaudeBlockToOllamaResponse(line, input)
-		if err != nil {
-			//log.Println("Decode error:", err)
-			continue
-		}
-		if re == nil {
-			continue
-		}
-		jsonStr, err := json.Marshal(re)
+		//fmt.Println("收到一行:", string(line))
+		jsonStr, err := GenResponse(line, &input)
+		log.Println("返回一行:", string(jsonStr))
 		if err != nil {
 			log.Println("Encode error:", err)
+			continue
+		}
+		if string(jsonStr) == "null" {
 			continue
 		}
 		_, writeErr := c.Writer.Write(jsonStr)
@@ -237,7 +236,7 @@ func chatHandlerSteam(c *gin.Context) {
 			continue
 
 		}
-		_, writeErr = c.Writer.Write([]byte("\n"))
+		_, writeErr = c.Writer.Write([]byte("\r\n"))
 		if writeErr != nil {
 			log.Println("Write error:", writeErr)
 			continue
@@ -245,6 +244,52 @@ func chatHandlerSteam(c *gin.Context) {
 		}
 		c.Writer.Flush()
 
+	}
+
+}
+
+func GenRequest(input *OllamaChatRequest) ([]byte, error) {
+	if XConfig == nil {
+		return nil, nil
+	}
+	switch XConfig.ChatType {
+	case "dify":
+		if XConfig.DifyToken == "" {
+			err := getDifyToken(input.Model)
+			if err != nil {
+				return nil, err
+			}
+		}
+		re := ToDityRequest(input)
+		return json.Marshal(re)
+	case "claude":
+		re := toClaudeRequest(input.Messages)
+		return json.Marshal(re)
+	default:
+		return nil, nil
+	}
+
+}
+
+func GenResponse(input []byte, req *OllamaChatRequest) ([]byte, error) {
+	if XConfig == nil {
+		return nil, nil
+	}
+	switch XConfig.ChatType {
+	case "dify":
+		re, err := DifyToOllamaResponse(input, req)
+		if err != nil {
+			return nil, nil
+		}
+		return json.Marshal(re)
+	case "claude":
+		re, err := ClaudeBlockToOllamaResponse(input, req)
+		if err != nil {
+			return nil, nil
+		}
+		return json.Marshal(re)
+	default:
+		return nil, nil
 	}
 
 }

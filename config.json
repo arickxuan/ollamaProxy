@@ -1,9 +1,14 @@
 {
-  "mock": true,
-  "model": "claude-3-7-sonnet-latest",
+  "mock": false,
+  "chatType":  "dify",
   "port": 8080,
-  "apiURL": "https://freeaichatplayground.com/api/v1/chat/completions",
+  "apiURL": "https://123.com/681agentapi/api/chat-messages",
   "apiKey": "k-ant-this-is-a-test-for-cursor",
-  "modelsURL": "https://freeaichatplayground.com/api/v1/models"
- 
+   "modelsURL": "https://freeaichatplayground.com/api/v1/models",
+  "difyAppMap":{
+    "claude-3-7-sonnet-latest": "123123",
+    "Gemini-2.5-pro":"123123",
+    "GPT-4.1":"123123"
+  },
+  "difyTokenUrl": "https://123123.com/681agentapi/api/passport"
 }
