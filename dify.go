@@ -77,7 +77,7 @@ func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse
 	err := json.Unmarshal(input[6:], &response)
 	if err != nil {
 		log.Println("Unmarshal error:", err)
-		return nil, err
+		return nil, nil
 	}
 	if response.Event == "message_end" {
 		msg.Done = true
@@ -101,7 +101,7 @@ func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse
 			msg.Done = false
 			return nil, err
 		}
-		msg.Done = true
+		msg.Done = false
 		msg.Message = OllamaMessage{
 			Role:    "assistant",
 			Content: response.Thought,
@@ -128,14 +128,22 @@ func getDifyToken(model string) error {
 		return fmt.Errorf("XConfig is nil")
 	}
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", XConfig.DifyTokenUrl, nil)
+	url := XConfig.DifyTokenUrl
+	if XConfig.IsProd {
+		url = XConfig.DifyTokenUrlProd
+	}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Printf("创建请求失败: %v", err)
 		return err
 	}
+	if app, ok := XConfig.DifyAppMapProd[model]; ok {
+		req.Header.Add("X-App-Code", app)
+	}
 	if app, ok := XConfig.DifyAppMap[model]; ok {
 		req.Header.Add("X-App-Code", app)
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("发送请求失败: %v", err)
@@ -150,7 +158,7 @@ func getDifyToken(model string) error {
 	}
 	token := DifyToken{}
 	err = json.Unmarshal(body, &token)
-	XConfig.DifyToken = token.AccessToken
+	XConfig.DifyTokenMap[model] = token.AccessToken
 	//log.Println("获取到的token:", token.AccessToken)
 
 	return nil

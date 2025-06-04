@@ -1,8 +1,10 @@
 {
-  "mock": false,
+  "mock": true,
   "chatType":  "dify",
-  "port": 8080,
+  "port": 8081,
+  "openaiPort": 8082,
   "apiURL": "https://123.com/681agentapi/api/chat-messages",
+  "apiURLProd":"http://dify.com/api/chat-messages",
   "apiKey": "k-ant-this-is-a-test-for-cursor",
    "modelsURL": "https://freeaichatplayground.com/api/v1/models",
   "difyAppMap":{
@@ -10,5 +12,10 @@
     "Gemini-2.5-pro":"123123",
     "GPT-4.1":"123123"
   },
-  "difyTokenUrl": "https://123123.com/681agentapi/api/passport"
+  "difyAppMapProd":{
+    "claude-4-sonnet-latest": "123",
+    "claude-4-sonnet-thinking":"123"
+  },
+  "difyTokenUrl": "https://123123.com/681agentapi/api/passport",
+  "difyTokenUrlProd":"http://444.com/api/passport"
 }

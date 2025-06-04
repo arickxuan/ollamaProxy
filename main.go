@@ -55,6 +55,8 @@ func main() {
 	router.GET("/api/tags", getModels)
 	router.POST("/api/chat", chatHandlerSteam)
 	router.POST("/v1/chat/completions", chatHandlerSteam)
+	router.POST("/openai/v1/chat/completions", OpenaiHandlerSteam)
+	router.GET("/openai/api/models", getModels)
 
 	log.Println("Claude proxy server running at :" + strconv.Itoa(XConfig.Port))
 	router.Run(":" + strconv.Itoa(XConfig.Port))
@@ -98,6 +100,24 @@ func getModels(c *gin.Context) {
 		}
 	} else if XConfig != nil && XConfig.ChatType == "dify" {
 		for key, _ := range XConfig.DifyAppMap {
+			family := strings.Split(key, "-")[0]
+			model := map[string]interface{}{
+				"name":        key,
+				"model":       key,
+				"modified_at": time.Now().UTC().Format(time.RFC3339),
+				"size":        rand.Int63n(1e10),
+				"digest":      RandString(12),
+				"details": map[string]interface{}{
+					"format":             "unknown",
+					"family":             family,
+					"families":           []string{family},
+					"parameter_size":     "unknown",
+					"quantization_level": "unknown",
+				},
+			}
+			models = append(models, model)
+		}
+		for key, _ := range XConfig.DifyAppMapProd {
 			family := strings.Split(key, "-")[0]
 			model := map[string]interface{}{
 				"name":        key,
@@ -176,6 +196,21 @@ func chatHandlerSteam(c *gin.Context) {
 	}
 	//log.Println("Received request:", input)
 
+	models := make([]string, 0)
+	hasModels := make([]string, 0)
+	for model, _ := range XConfig.DifyAppMapProd {
+		models = append(models, model)
+		if model == input.Model {
+			XConfig.IsProd = true
+			break
+		} else {
+			hasModels = append(models, model)
+		}
+	}
+	if len(hasModels) == len(models) {
+		XConfig.IsProd = false
+	}
+
 	// 构造 API 请求
 	payload, err := GenRequest(&input)
 	if err != nil {
@@ -184,7 +219,12 @@ func chatHandlerSteam(c *gin.Context) {
 		return
 	}
 
-	req, err := http.NewRequest("POST", XConfig.APIURL, bytes.NewBuffer(payload))
+	url := XConfig.APIURL
+	if XConfig.IsProd {
+		url = XConfig.APIURLProd
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		log.Println("Request error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
@@ -192,7 +232,7 @@ func chatHandlerSteam(c *gin.Context) {
 	}
 	if XConfig.ChatType == "dify" {
 		//log.Println("current DifyToken:", XConfig.DifyToken)
-		req.Header.Set("Authorization", "Bearer "+XConfig.DifyToken)
+		req.Header.Set("Authorization", "Bearer "+XConfig.DifyTokenMap[input.Model])
 	} else {
 		req.Header.Set("Authorization", "Bearer "+XConfig.APIKey)
 	}
@@ -220,6 +260,12 @@ func chatHandlerSteam(c *gin.Context) {
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		if len(string(line)) < 6 {
+			continue
+		}
+		if string(line)[:5] != "data:" && string(line)[:6] != "[DONE]" {
+			continue
+		}
 		//fmt.Println("收到一行:", string(line))
 		jsonStr, err := GenResponse(line, &input)
 		log.Println("返回一行:", string(jsonStr))
@@ -254,7 +300,7 @@ func GenRequest(input *OllamaChatRequest) ([]byte, error) {
 	}
 	switch XConfig.ChatType {
 	case "dify":
-		if XConfig.DifyToken == "" {
+		if XConfig.DifyTokenMap[input.Model] == "" {
 			err := getDifyToken(input.Model)
 			if err != nil {
 				return nil, err

@@ -6,16 +6,22 @@ import (
 )
 
 type Config struct {
-	Port      int    `json:"port"`
-	ChatType  string `json:"chatType"`
-	APIURL    string `json:"apiURL"`
-	ModelsURL string `json:"modelsURL"`
-	APIKey    string `json:"apiKey"`
-	Mock      bool   `json:"mock"`
+	Port       int    `json:"port"`
+	OpenaiPort int    `json:"openaiPort"`
+	ChatType   string `json:"chatType"`
+	APIURL     string `json:"apiURL"`
+	APIURLProd string `json:"apiURLProd"`
+	ModelsURL  string `json:"modelsURL"`
+	APIKey     string `json:"apiKey"`
+	Debug      bool   `json:"debug"`
+	Mock       bool   `json:"mock"`
 	// Model        string            `json:"model"`
-	DifyAppMap   map[string]string `json:"difyAppMap"`
-	DifyTokenUrl string            `json:"difyTokenUrl"`
-	DifyToken    string            `json:"-"`
+	DifyAppMap       map[string]string `json:"difyAppMap"`
+	DifyAppMapProd   map[string]string `json:"difyAppMapProd"`
+	DifyTokenUrl     string            `json:"difyTokenUrl"`
+	DifyTokenUrlProd string            `json:"difyTokenUrlProd"`
+	DifyTokenMap     map[string]string `json:"-"`
+	IsProd           bool              `json:"-"`
 }
 
 func loadConfig(configPath string) (*Config, error) {

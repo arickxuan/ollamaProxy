@@ -23,7 +23,7 @@
   },
   "difyTokenUrl": "https://123123.com/681agentapi/api/passport"
 }
-```
+
 
 mock 用于测试响应 一般为false
 port 用于设置代理服务的端口
@@ -35,3 +35,28 @@ apiKey 用于设置目标模型服务的密钥
 chatType =  dify 时需要配置以下参数
 difyAppMap 用于设置代理服务的模型和dify app的映射 用于获取access_token
 difyTokenUrl 用于获取代理服务的token地址
+
+```
+
+
+```curl
+
+ 测试是否正常
+curl -X "POST" "http://127.0.0.1:8080/api/chat" \
+     -H 'Content-Type: application/json; charset=utf-8' \
+     -d $'{
+  "messages": [
+    {
+      "content": "你是",
+      "role": "user"
+    }
+  ],
+  "model": "claude-3-7-sonnet-latest",
+  "options": {
+    "num_ctx": 16384
+  },
+  "keep_alive": "30m",
+  "stream": true
+}'
+
+```
