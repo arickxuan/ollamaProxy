@@ -158,6 +158,9 @@ func getDifyToken(model string) error {
 	}
 	token := DifyToken{}
 	err = json.Unmarshal(body, &token)
+	if XConfig.DifyTokenMap == nil {
+		XConfig.DifyTokenMap = make(map[string]string)
+	}
 	XConfig.DifyTokenMap[model] = token.AccessToken
 	//log.Println("获取到的token:", token.AccessToken)
 
