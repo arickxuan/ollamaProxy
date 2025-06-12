@@ -122,6 +122,10 @@ func OpenaiHandlerSteam(c *gin.Context) {
 	}
 
 	req, err := http.NewRequest("POST", XConfig.APIURL, bytes.NewBuffer([]byte{}))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+	req.Header.Set("Content-Type", "application/json")
 
 	// 发起请求
 	client := &http.Client{}

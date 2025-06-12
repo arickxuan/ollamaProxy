@@ -57,6 +57,8 @@ func main() {
 	router.POST("/v1/chat/completions", chatHandlerSteam)
 	router.POST("/openai/v1/chat/completions", OpenaiHandlerSteam)
 	router.GET("/openai/api/models", getModels)
+	router.POST("/claude/v1/messages", ClaudeHandlerSteam)
+	router.GET("/claude/v1/models", getModels)
 
 	log.Println("Claude proxy server running at :" + strconv.Itoa(XConfig.Port))
 	router.Run(":" + strconv.Itoa(XConfig.Port))
