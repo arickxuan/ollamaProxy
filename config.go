@@ -20,6 +20,7 @@ type Config struct {
 	DifyAppMapProd   map[string]string `json:"difyAppMapProd"`
 	DifyTokenUrl     string            `json:"difyTokenUrl"`
 	DifyTokenUrlProd string            `json:"difyTokenUrlProd"`
+	Mapping          map[string]string `json:"mapping"`
 	DifyTokenMap     map[string]string `json:"-"`
 	IsProd           bool              `json:"-"`
 }

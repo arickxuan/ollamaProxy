@@ -67,6 +67,17 @@ func ToDityRequest(input *OllamaChatRequest) *DifyChatRequest {
 	return &req
 }
 
+func GptToDityRequest(input *ChatGPTRequest) *DifyChatRequest {
+	index := len(input.Messages) - 1
+	req := DifyChatRequest{
+		ResponseMode:   "streaming",
+		ConversationID: "",
+		Query:          input.Messages[index].Content,
+		Inputs:         map[string]interface{}{},
+	}
+	return &req
+}
+
 func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse, error) {
 	msg := OllamaResponse{}
 	response := DifyAgentThoughtEvent{}
@@ -121,6 +132,36 @@ func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse
 	}
 	msg.Done = false
 	return &msg, nil
+}
+
+func DifyToGptResponse(input []byte, req *ChatGPTRequest) (string, error) {
+	msg := ChatGPTSteanResponse{}
+	response := DifyAgentThoughtEvent{}
+	err := json.Unmarshal(input, &response)
+	if err != nil {
+		log.Println("Unmarshal error:", err)
+		return "", nil
+	}
+	if response.Event == "message_end" {
+		return "", err
+	}
+	if response.Event == "agent_thought" || response.Event == "content_block_start" {
+		if response.Thought == "" {
+			msg.V = "ok,"
+			msg.P = "response/content"
+			msg.O = "append"
+			str, err := json.Marshal(&msg)
+			return string(str), err
+		}
+		return "", err
+	}
+	if response.Answer == "" {
+		return "", nil
+	}
+
+	msg.V = response.Answer
+	str, err := json.Marshal(&msg)
+	return string(str), err
 }
 
 func getDifyToken(model string) error {

@@ -3,11 +3,11 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +39,12 @@ type ChatGPTResponse struct {
 	Usage             Usage       `json:"usage"`
 }
 
+type ChatGPTSteanResponse struct {
+	V string `json:"v"`
+	P string `json:"p,omitempty"`
+	O string `json:"o,omitempty"`
+}
+
 type GPTChoice struct {
 	Index        int        `json:"index"`
 	Message      GptMessage `json:"message"`
@@ -59,6 +65,20 @@ type Usage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+}
+
+func GpttoClaudeRequest(input []Message) []ClaudeMessageItem {
+	msg := make([]ClaudeMessageItem, 0, len(input))
+	for _, m := range input {
+		if m.Role == "system" {
+			m.Role = "assistant"
+		}
+		msg = append(msg, ClaudeMessageItem{
+			Role:    m.Role,
+			Content: []ClaudeMessageContent{{Type: "text", Text: m.Content}},
+		})
+	}
+	return msg
 }
 
 func MockGPTResponse() *ChatGPTResponse {
@@ -121,10 +141,54 @@ func OpenaiHandlerSteam(c *gin.Context) {
 		return
 	}
 
-	req, err := http.NewRequest("POST", XConfig.APIURL, bytes.NewBuffer([]byte{}))
+	if model, ok := XConfig.Mapping[input.Model]; ok {
+		input.Model = model
+	}
+
+	// dify 选择 url
+	models := make([]string, 0)
+	hasModels := make([]string, 0)
+	for model, _ := range XConfig.DifyAppMapProd {
+		models = append(models, model)
+		if model == input.Model {
+			XConfig.IsProd = true
+			break
+		} else {
+			hasModels = append(models, model)
+		}
+	}
+	if len(hasModels) == len(models) {
+		XConfig.IsProd = false
+	}
+
+	url := XConfig.APIURL
+	if XConfig.IsProd {
+		url = XConfig.APIURLProd
+	}
+
+	payload, err := GptGenRequest(&input)
+	if err != nil {
+		log.Println("Encode error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request"})
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
+
+	if XConfig.ChatType == "dify" {
+		if XConfig.DifyTokenMap[input.Model] == "" {
+			// 目前dify为空，则需要重新获取token
+			//getDifyToken(input.Model)
+		}
+		log.Println("current DifyToken:", XConfig.DifyTokenMap[input.Model])
+		req.Header.Set("Authorization", "Bearer "+XConfig.DifyTokenMap[input.Model])
+	} else {
+		req.Header.Set("Authorization", "Bearer "+XConfig.APIKey)
+	}
+	req.Header.Set("x-api-key", XConfig.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	// 发起请求
@@ -135,10 +199,20 @@ func OpenaiHandlerSteam(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "API request failed"})
 		return
 	}
+	if resp.StatusCode != http.StatusOK {
+		c.JSON(resp.StatusCode, gin.H{"error": "API request failed"})
+		return
+	}
 	defer resp.Body.Close()
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), MaxScannerBufferSize)
 	scanner.Split(bufio.ScanLines)
+
+	// 设置为流式响应
+	c.Header("content-Type", "text/event-stream")
+	// c.Header("content-Type", "application/x-ndjson")
+	c.Header("cache-control", "no-cache")
+	c.Header("Connection", "keep-alive")
 
 	for scanner.Scan() {
 		data := scanner.Text()
@@ -148,19 +222,28 @@ func OpenaiHandlerSteam(c *gin.Context) {
 		if len(data) < 6 {
 			continue
 		}
-		if data[:5] != "data:" && data[:6] != "[DONE]" {
+		if data[:5] != "data:" { //&& data[:6] != "[DONE]"
 			continue
 		}
-		data = data[5:]
-		data = strings.TrimLeft(data, " ")
-		data = strings.TrimSuffix(data, "\r")
+		data = data[6:]
 
-		if !strings.HasPrefix(data, "[DONE]") {
-			success := dataHandler(data)
-			if !success {
-				break
-			}
+		str, err := GptGenResponse([]byte(data), &input)
+		log.Println("返回一行:", str)
+		if err != nil {
+			log.Println("Encode error:", err)
+			continue
 		}
+		if str == "null" || str == "" {
+			continue
+		}
+		re := []byte("data: " + str + "\n\n")
+		info, err := c.Writer.Write(re)
+		if err != nil {
+			log.Println("Write error:", err)
+			continue
+		}
+		log.Println("info:", info)
+		c.Writer.Flush()
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -171,7 +254,46 @@ func OpenaiHandlerSteam(c *gin.Context) {
 
 }
 
-func dataHandler(data string) bool {
-	return true
+func GptGenRequest(input *ChatGPTRequest) ([]byte, error) {
+	if XConfig == nil {
+		return nil, nil
+	}
+	switch XConfig.ChatType {
+	case "dify":
+		if XConfig.DifyTokenMap[input.Model] == "" {
+			err := getDifyToken(input.Model)
+			if err != nil {
+				return nil, err
+			}
+		}
+		log.Println("DifyTokenMap:", XConfig.DifyTokenMap)
+		re := GptToDityRequest(input)
+		return json.Marshal(re)
+	case "claude":
+		re := GpttoClaudeRequest(input.Messages)
+		return json.Marshal(re)
+	default:
+		return nil, nil
+	}
+
+}
+
+func GptGenResponse(input []byte, req *ChatGPTRequest) (string, error) {
+	if XConfig == nil {
+		return "", nil
+	}
+	switch XConfig.ChatType {
+	case "dify":
+		return DifyToGptResponse(input, req)
+	case "claude":
+		// re, err := ClaudeBlockToOllamaResponse(input, req)
+		// if err != nil {
+		// 	return nil, nil
+		// }
+		// return json.Marshal(re)
+		return "", nil
+	default:
+		return "", nil
+	}
 
 }

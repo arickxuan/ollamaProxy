@@ -56,26 +56,12 @@ func main() {
 	router.POST("/api/chat", chatHandlerSteam)
 	router.POST("/v1/chat/completions", chatHandlerSteam)
 	router.POST("/openai/v1/chat/completions", OpenaiHandlerSteam)
-	router.GET("/openai/api/models", getModels)
+	router.GET("/openai/v1/models", getModels)
 	router.POST("/claude/v1/messages", ClaudeHandlerSteam)
 	router.GET("/claude/v1/models", getModels)
 
 	log.Println("Claude proxy server running at :" + strconv.Itoa(XConfig.Port))
 	router.Run(":" + strconv.Itoa(XConfig.Port))
-}
-
-func toClaudeRequest(input []OllamaMessage) []ClaudeMessageItem {
-	msg := make([]ClaudeMessageItem, 0, len(input))
-	for _, m := range input {
-		if m.Role == "system" {
-			m.Role = "assistant"
-		}
-		msg = append(msg, ClaudeMessageItem{
-			Role:    m.Role,
-			Content: []ClaudeMessageContent{{Type: "text", Text: m.Content}},
-		})
-	}
-	return msg
 }
 
 func getModels(c *gin.Context) {
@@ -213,17 +199,17 @@ func chatHandlerSteam(c *gin.Context) {
 		XConfig.IsProd = false
 	}
 
-	// 构造 API 请求
+	url := XConfig.APIURL
+	if XConfig.IsProd {
+		url = XConfig.APIURLProd
+	}
+
+	// 构造 API 请求 Ollama to Dify or Anthropic 依赖 XConfig.IsProd
 	payload, err := GenRequest(&input)
 	if err != nil {
 		log.Println("Encode error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request"})
 		return
-	}
-
-	url := XConfig.APIURL
-	if XConfig.IsProd {
-		url = XConfig.APIURLProd
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))

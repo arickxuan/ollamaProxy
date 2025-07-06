@@ -34,3 +34,17 @@ type OllamaResponse struct {
 	EvalDuration       int64         `json:"eval_duration,omitempty"`        // 评估的耗时（单位可能为纳秒）
 	Error              string        `json:"error,omitempty"`
 }
+
+func toClaudeRequest(input []OllamaMessage) []ClaudeMessageItem {
+	msg := make([]ClaudeMessageItem, 0, len(input))
+	for _, m := range input {
+		if m.Role == "system" {
+			m.Role = "assistant"
+		}
+		msg = append(msg, ClaudeMessageItem{
+			Role:    m.Role,
+			Content: []ClaudeMessageContent{{Type: "text", Text: m.Content}},
+		})
+	}
+	return msg
+}

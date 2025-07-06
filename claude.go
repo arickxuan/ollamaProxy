@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ClaudeDataItem struct {
@@ -181,10 +182,10 @@ func ClaudeHandlerSteam(c *gin.Context) {
 		data = strings.TrimSuffix(data, "\r")
 
 		if !strings.HasPrefix(data, "[DONE]") {
-			success := dataHandler(data)
-			if !success {
-				break
-			}
+			// success := dataHandler(data)
+			// if !success {
+			// 	break
+			// }
 		}
 	}
 
