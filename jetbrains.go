@@ -1,5 +1,7 @@
 package main
 
+// https://github.com/zouyq/jetbrains-ai-proxy/blob/c3aa83dbbb8dcc207be78787ee144740fd8c99d0/internal/apiserver/router.go#L67
+
 type SSEData struct {
 	Type      string       `json:"type"`
 	EventType string       `json:"event_type"`
