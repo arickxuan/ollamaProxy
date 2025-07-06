@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -67,7 +68,7 @@ func ToDityRequest(input *OllamaChatRequest) *DifyChatRequest {
 	return &req
 }
 
-func GptToDityRequest(input *ChatGPTRequest) *DifyChatRequest {
+func GptToDityRequest(input *ChatCompletionRequest) *DifyChatRequest {
 	index := len(input.Messages) - 1
 	req := DifyChatRequest{
 		ResponseMode:   "streaming",
@@ -134,24 +135,39 @@ func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse
 	return &msg, nil
 }
 
-func DifyToGptResponse(input []byte, req *ChatGPTRequest) (string, error) {
-	msg := ChatGPTSteanResponse{}
+func DifyToGptResponse(input []byte, req *ChatCompletionRequest) (string, error) {
+	var msg ChatCompletionStreamResponse
 	response := DifyAgentThoughtEvent{}
 	err := json.Unmarshal(input, &response)
 	if err != nil {
 		log.Println("Unmarshal error:", err)
 		return "", nil
 	}
+	now := time.Now().Unix()
+	chatId := strconv.Itoa(int(now))
+	fingerprint := "" //raw body
 	if response.Event == "message_end" {
-		return "", err
+		//var spentAmount float64 = 80 // todo 计算花费
+
+		msg = CreateStreamMessage(chatId, now, req, fingerprint, "", "")
+		msg.Choices[0].FinishReason = FinishReasonStop
+		msg.Usage = &Usage{
+			PromptTokens:     response.Metadata.Usage.PromptTokens,
+			CompletionTokens: response.Metadata.Usage.CompletionTokens,
+			TotalTokens:      response.Metadata.Usage.TotalTokens,
+		}
+		str, _ := json.Marshal(&msg)
+		return string(str), err
 	}
 	if response.Event == "agent_thought" || response.Event == "content_block_start" {
 		if response.Thought == "" {
-			msg.V = "ok,"
-			msg.P = "response/content"
-			msg.O = "append"
-			str, err := json.Marshal(&msg)
-			return string(str), err
+			// msg.V = "ok,"
+			// msg.P = "response/content"
+			// msg.O = "append"
+			// str, err := json.Marshal(&msg)
+			//msg = CreateStreamMessage(chatId, now, req, fingerprint, response.Answer, "")
+			//str, _ := json.Marshal(&msg)
+			//return string(str), err
 		}
 		return "", err
 	}
@@ -159,7 +175,10 @@ func DifyToGptResponse(input []byte, req *ChatGPTRequest) (string, error) {
 		return "", nil
 	}
 
-	msg.V = response.Answer
+	msg = CreateStreamMessage(chatId, now, req, fingerprint, response.Answer, "")
+	// completionBuilder.WriteString(sseData.Content)
+
+	// msg.V = response.Answer
 	str, err := json.Marshal(&msg)
 	return string(str), err
 }
