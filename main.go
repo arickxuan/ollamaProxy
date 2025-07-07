@@ -89,7 +89,7 @@ func getModels(c *gin.Context) {
 			models = append(models, model)
 		}
 	} else if XConfig != nil && XConfig.ChatType == "dify" {
-		for key, _ := range XConfig.DifyAppMap {
+		for key := range XConfig.DifyAppMap {
 			family := strings.Split(key, "-")[0]
 			model := map[string]interface{}{
 				"name":        key,
@@ -107,7 +107,7 @@ func getModels(c *gin.Context) {
 			}
 			models = append(models, model)
 		}
-		for key, _ := range XConfig.DifyAppMapProd {
+		for key := range XConfig.DifyAppMapProd {
 			family := strings.Split(key, "-")[0]
 			model := map[string]interface{}{
 				"name":        key,
@@ -161,7 +161,6 @@ func getModels(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"models": models})
-	return
 }
 
 func chatHandlerSteam(c *gin.Context) {
@@ -188,7 +187,7 @@ func chatHandlerSteam(c *gin.Context) {
 
 	models := make([]string, 0)
 	hasModels := make([]string, 0)
-	for model, _ := range XConfig.DifyAppMapProd {
+	for model := range XConfig.DifyAppMapProd {
 		models = append(models, model)
 		if model == input.Model {
 			XConfig.IsProd = true

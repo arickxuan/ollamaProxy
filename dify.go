@@ -174,6 +174,7 @@ func DifyToGptResponse(input []byte, req *ChatCompletionRequest) (string, error)
 	}
 	if response.Event == "agent_thought" || response.Event == "content_block_start" {
 		if response.Thought == "" {
+			log.Println("Received empty thoughts")
 			// msg.V = "ok,"
 			// msg.P = "response/content"
 			// msg.O = "append"
@@ -231,6 +232,9 @@ func getDifyToken(model string) error {
 	}
 	token := DifyToken{}
 	err = json.Unmarshal(body, &token)
+	if err != nil {
+		log.Println("Unmarshal error:", err)
+	}
 	if XConfig.DifyTokenMap == nil {
 		XConfig.DifyTokenMap = make(map[string]string)
 	}

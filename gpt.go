@@ -461,7 +461,7 @@ func GetGptModels(c *gin.Context) {
 	resp := GptModelListResp{}
 	resp.Data = models
 
-	for key, _ := range XConfig.DifyAppMap {
+	for key := range XConfig.DifyAppMap {
 		family := strings.Split(key, "-")[0]
 		gpt := GptModel{
 			ID:      key,
@@ -472,7 +472,7 @@ func GetGptModels(c *gin.Context) {
 		models = append(models, gpt)
 
 	}
-	for key, _ := range XConfig.DifyAppMapProd {
+	for key := range XConfig.DifyAppMapProd {
 		family := strings.Split(key, "-")[0]
 		gpt := GptModel{
 			ID:      key,
@@ -531,7 +531,7 @@ func OpenaiHandlerSteam(c *gin.Context) {
 	// dify 选择 url
 	models := make([]string, 0)
 	hasModels := make([]string, 0)
-	for model, _ := range XConfig.DifyAppMapProd {
+	for model := range XConfig.DifyAppMapProd {
 		models = append(models, model)
 		if model == input.Model {
 			XConfig.IsProd = true
@@ -562,10 +562,6 @@ func OpenaiHandlerSteam(c *gin.Context) {
 	}
 
 	if XConfig.ChatType == "dify" {
-		if XConfig.DifyTokenMap[input.Model] == "" {
-			// 目前dify为空，则需要重新获取token
-			//getDifyToken(input.Model)
-		}
 		log.Println("current DifyToken:", XConfig.DifyTokenMap[input.Model])
 		req.Header.Set("Authorization", "Bearer "+XConfig.DifyTokenMap[input.Model])
 	} else {

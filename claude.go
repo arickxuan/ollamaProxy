@@ -182,6 +182,7 @@ func ClaudeHandlerSteam(c *gin.Context) {
 		data = strings.TrimSuffix(data, "\r")
 
 		if !strings.HasPrefix(data, "[DONE]") {
+			log.Println("Received data:", string(data))
 			// success := dataHandler(data)
 			// if !success {
 			// 	break

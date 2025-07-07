@@ -96,6 +96,11 @@ func getModelsByUrl() (*ModelList, error) {
 	}
 	re := ModelList{}
 	err = json.Unmarshal(body, &re)
+	if err != nil {
+		log.Printf("解析JSON失败: %v", err)
+		return nil, err
+	}
 
 	return &re, nil
+
 }
