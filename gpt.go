@@ -622,6 +622,17 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 			continue
 		}
 		data = data[6:]
+		if data == "[DONE]" {
+			outputMsg := fmt.Sprintf("data: %s\n\n", data)
+			info, err := c.Writer.WriteString(outputMsg)
+			if err != nil {
+				log.Println("Write error:", err)
+				continue
+			}
+			log.Println("info:", info)
+			c.Writer.Flush()
+			break
+		}
 
 		sendLine, err := GptGenResponseStream([]byte(data), &input)
 		//log.Println("返回一行:", sendLine)
