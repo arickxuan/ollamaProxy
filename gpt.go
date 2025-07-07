@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,9 +23,21 @@ const (
 	DefaultPingInterval      = 10 * time.Second
 )
 
+type GptModel struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	OwnedBy string `json:"owned_by"`
+}
+
+// List represents the entire structure of the given JSON.
+type GptModelListResp struct {
+	Object string     `json:"object"`
+	Data   []GptModel `json:"data"`
+}
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 type ChatGPTRequest struct {
 	Messages []Message `json:"messages"`
@@ -90,9 +103,9 @@ type ChatMessagePart struct {
 }
 
 type ChatCompletionMessage struct {
-	Role         string `json:"role"`
-	Content      string `json:"content,omitempty"`
-	Refusal      string `json:"refusal,omitempty"`
+	Role         string      `json:"role"`
+	Content      interface{} `json:"content,omitempty"`
+	Refusal      string      `json:"refusal,omitempty"`
 	MultiContent []ChatMessagePart
 
 	// This property isn't in the official documentation, but it's in
@@ -384,10 +397,24 @@ func GpttoClaudeRequest(input []ChatCompletionMessage) []ClaudeMessageItem {
 		if m.Role == "system" {
 			m.Role = "assistant"
 		}
-		msg = append(msg, ClaudeMessageItem{
-			Role:    m.Role,
-			Content: []ClaudeMessageContent{{Type: "text", Text: m.Content}},
-		})
+		str := ""
+		if m.Content == nil {
+			m.Content = ""
+		}
+		str, ok := m.Content.(string)
+		if ok {
+			msg = append(msg, ClaudeMessageItem{
+				Role:    m.Role,
+				Content: []ClaudeMessageContent{{Type: "text", Text: str}},
+			})
+		}
+		nmap, ok := m.Content.(map[string]string)
+		if ok {
+			msg = append(msg, ClaudeMessageItem{
+				Role:    m.Role,
+				Content: []ClaudeMessageContent{{Type: "text", Text: nmap["text"]}},
+			})
+		}
 	}
 	return msg
 }
@@ -421,7 +448,7 @@ func GPTServer() {
 		c.String(http.StatusOK, "Ollama is running ok")
 	})
 	router.GET("/api/tags", getModels)
-	router.GET("/api/models", getModels)
+	router.GET("/api/models", GetGptModels)
 	router.POST("/api/chat", chatHandlerSteam)
 	router.POST("/v1/chat/completions", OpenaiHandlerSteam)
 
@@ -429,12 +456,57 @@ func GPTServer() {
 	router.Run(":" + strconv.Itoa(XConfig.OpenaiPort))
 }
 
+func GetGptModels(c *gin.Context) {
+	models := make([]GptModel, 0)
+	resp := GptModelListResp{}
+	resp.Data = models
+
+	for key, _ := range XConfig.DifyAppMap {
+		family := strings.Split(key, "-")[0]
+		gpt := GptModel{
+			ID:      key,
+			Object:  "model",
+			Created: 0,
+			OwnedBy: family,
+		}
+		models = append(models, gpt)
+
+	}
+	for key, _ := range XConfig.DifyAppMapProd {
+		family := strings.Split(key, "-")[0]
+		gpt := GptModel{
+			ID:      key,
+			Object:  "model",
+			Created: 0,
+			OwnedBy: family,
+		}
+		models = append(models, gpt)
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func OpenaiHandlerSteam(c *gin.Context) {
+	body, _ := c.GetRawData()
 	var input ChatCompletionRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+	err := json.Unmarshal(body, &input)
+	if err != nil {
+		log.Println("Bind "+string(body)+"error:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request" + err.Error()})
 		return
 	}
+	msg := make([]ChatCompletionMessage, 0)
+	for _, m := range input.Messages {
+		switch content := m.Content.(type) {
+		case string:
+			// log.Println("string:", content)
+			msg = append(msg, m)
+		case map[string]string:
+			// log.Println("map[string]string:", content["text"])
+			// m.Content = content["text"]
+			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
+		}
+	}
+	input.Messages = msg
 
 	if XConfig != nil && XConfig.Mock {
 		//c.Header("content-Type", "application/x-ndjson")
@@ -480,7 +552,7 @@ func OpenaiHandlerSteam(c *gin.Context) {
 	payload, err := GptGenRequest(&input)
 	if err != nil {
 		log.Println("Encode error:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request" + err.Error()})
 		return
 	}
 
@@ -507,14 +579,16 @@ func OpenaiHandlerSteam(c *gin.Context) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Println("Request error:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "API request failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API request failed" + err.Error()})
 		return
 	}
-	if resp.StatusCode != http.StatusOK {
-		c.JSON(resp.StatusCode, gin.H{"error": "API request failed"})
-		return
-	}
+
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		c.JSON(resp.StatusCode, gin.H{"error": "API request failed code is not 200", "data": string(body)})
+		return
+	}
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), MaxScannerBufferSize)
 	scanner.Split(bufio.ScanLines)

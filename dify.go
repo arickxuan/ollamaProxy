@@ -70,13 +70,26 @@ func ToDityRequest(input *OllamaChatRequest) *DifyChatRequest {
 
 func GptToDityRequest(input *ChatCompletionRequest) *DifyChatRequest {
 	index := len(input.Messages) - 1
-	req := DifyChatRequest{
-		ResponseMode:   "streaming",
-		ConversationID: "",
-		Query:          input.Messages[index].Content,
-		Inputs:         map[string]interface{}{},
+	switch content := input.Messages[index].Content.(type) {
+	case string:
+		req := DifyChatRequest{
+			ResponseMode:   "streaming",
+			ConversationID: "",
+			Query:          content,
+			Inputs:         map[string]interface{}{},
+		}
+		return &req
+	case map[string]string:
+		req := DifyChatRequest{
+			ResponseMode:   "streaming",
+			ConversationID: "",
+			Query:          content["text"],
+			Inputs:         map[string]interface{}{},
+		}
+		return &req
 	}
-	return &req
+
+	return nil
 }
 
 func DifyToOllamaResponse(input []byte, req *OllamaChatRequest) (*OllamaResponse, error) {

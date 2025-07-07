@@ -11,11 +11,11 @@ import (
 )
 
 type ModelList struct {
-	Data   []Model `json:"data"`
-	Object string  `json:"object"`
+	Data   []OllamModel `json:"data"`
+	Object string       `json:"object"`
 }
 
-type Model struct {
+type OllamModel struct {
 	Created    int64        `json:"created"`
 	ID         string       `json:"id"`
 	Object     string       `json:"object"`

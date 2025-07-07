@@ -56,7 +56,9 @@ func main() {
 	router.POST("/api/chat", chatHandlerSteam)
 	router.POST("/v1/chat/completions", chatHandlerSteam)
 	router.POST("/openai/v1/chat/completions", OpenaiHandlerSteam)
-	router.GET("/openai/v1/models", getModels)
+	router.GET("/openai/v1/models", GetGptModels)
+	router.POST("/imgreduce/openai/v1/chat/completions", OpenaiHandlerSteam)
+	router.GET("/imgreduce/openai/v1/models", GetGptModels)
 	router.POST("/claude/v1/messages", ClaudeHandlerSteam)
 	router.GET("/claude/v1/models", getModels)
 
