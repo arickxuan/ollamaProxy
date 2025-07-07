@@ -1,5 +1,15 @@
 package main
 
+type GeminiRequest struct {
+	Model    string           `json:"model"`
+	Steam    bool             `json:"steam"`
+	Messages []GeminiMessages `json:"messages"`
+}
+
+type GeminiMessages struct {
+	Role  string              `json:"role"`
+	Parts []map[string]string `json:"parts"`
+}
 type GeminiResponse struct {
 	ID                string         `json:"id"`
 	Object            string         `json:"object"`

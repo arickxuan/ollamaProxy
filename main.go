@@ -257,7 +257,7 @@ func chatHandlerSteam(c *gin.Context) {
 		}
 		//fmt.Println("收到一行:", string(line))
 		jsonStr, err := GenResponse(line, &input)
-		log.Println("返回一行:", string(jsonStr))
+		//log.Println("返回一行:", string(jsonStr))
 		if err != nil {
 			log.Println("Encode error:", err)
 			continue

@@ -39,10 +39,10 @@ type Message struct {
 	Role    string      `json:"role"`
 	Content interface{} `json:"content"`
 }
-type ChatGPTRequest struct {
-	Messages []Message `json:"messages"`
-	Model    string    `json:"model"`
-	Steam    bool      `json:"steam"`
+type CommonChatGPTRequest struct {
+	//Messages []Message `json:"messages"`
+	Model string `json:"model"`
+	Steam bool   `json:"steam"`
 }
 
 type ChatGPTResponse struct {
@@ -624,7 +624,7 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 		data = data[6:]
 
 		sendLine, err := GptGenResponseStream([]byte(data), &input)
-		log.Println("返回一行:", sendLine)
+		//log.Println("返回一行:", sendLine)
 		if err != nil {
 			log.Println("Encode error:", err)
 			continue
@@ -653,25 +653,40 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 
 func OpenaiHandler(c *gin.Context) {
 	body, _ := c.GetRawData()
+	var common CommonChatGPTRequest
+	var genimi GeminiRequest
 	var input ChatCompletionRequest
-	err := json.Unmarshal(body, &input)
+	err := json.Unmarshal(body, &common)
 	if err != nil {
 		log.Println("Bind "+string(body)+"error:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request" + err.Error()})
 		return
 	}
 	msg := make([]ChatCompletionMessage, 0)
-	for _, m := range input.Messages {
-		switch content := m.Content.(type) {
-		case string:
-			// log.Println("string:", content)
-			msg = append(msg, m)
-		case map[string]string:
-			// log.Println("map[string]string:", content["text"])
-			// m.Content = content["text"]
-			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
+	if common.Model == "Gemini-2.5-pro" {
+		err = json.Unmarshal(body, &genimi)
+		err = json.Unmarshal(body, &input)
+
+		for _, m := range genimi.Messages {
+			// log.Println("Role:", m.Role, "Content:", m.Content)
+			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: m.Parts[0]["text"]})
 		}
+	} else {
+		err = json.Unmarshal(body, &input)
+		for _, m := range input.Messages {
+			switch content := m.Content.(type) {
+			case string:
+				// log.Println("string:", content)
+				msg = append(msg, m)
+			case map[string]string:
+				// log.Println("map[string]string:", content["text"])
+				// m.Content = content["text"]
+				msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
+			}
+		}
+
 	}
+
 	input.Messages = msg
 
 	if XConfig != nil && XConfig.Mock {
