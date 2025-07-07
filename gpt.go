@@ -654,7 +654,7 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 func OpenaiHandler(c *gin.Context) {
 	body, _ := c.GetRawData()
 	var common CommonChatGPTRequest
-	var genimi GeminiRequest
+	var gemini GeminiRequest
 	var input ChatCompletionRequest
 	err := json.Unmarshal(body, &common)
 	if err != nil {
@@ -664,10 +664,10 @@ func OpenaiHandler(c *gin.Context) {
 	}
 	msg := make([]ChatCompletionMessage, 0)
 	if common.Model == "Gemini-2.5-pro" {
-		err = json.Unmarshal(body, &genimi)
+		err = json.Unmarshal(body, &gemini)
 		err = json.Unmarshal(body, &input)
 
-		for _, m := range genimi.Messages {
+		for _, m := range gemini.Messages {
 			// log.Println("Role:", m.Role, "Content:", m.Content)
 			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: m.Parts[0]["text"]})
 		}
