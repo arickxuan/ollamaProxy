@@ -68,6 +68,8 @@ type ChatMessagePartType string
 type ImageURLDetail string
 type ChatCompletionResponseFormatType string
 
+type httpHeader http.Header
+
 // Chat message role defined by the OpenAI API.
 const (
 	ChatMessageRoleSystem    = "system"
@@ -330,6 +332,56 @@ type PromptFilterResult struct {
 	ContentFilterResults ContentFilterResults `json:"content_filter_results,omitempty"`
 }
 
+type TopLogProbs struct {
+	Token   string  `json:"token"`
+	LogProb float64 `json:"logprob"`
+	Bytes   []byte  `json:"bytes,omitempty"`
+}
+
+// LogProb represents the probability information for a token.
+type LogProb struct {
+	Token   string  `json:"token"`
+	LogProb float64 `json:"logprob"`
+	Bytes   []byte  `json:"bytes,omitempty"` // Omitting the field if it is null
+	// TopLogProbs is a list of the most likely tokens and their log probability, at this token position.
+	// In rare cases, there may be fewer than the number of requested top_logprobs returned.
+	TopLogProbs []TopLogProbs `json:"top_logprobs"`
+}
+
+// LogProbs is the top-level structure containing the log probability information.
+type LogProbs struct {
+	// Content is a list of message content tokens with log probability information.
+	Content []LogProb `json:"content"`
+}
+
+type ChatCompletionChoice struct {
+	Index   int                   `json:"index"`
+	Message ChatCompletionMessage `json:"message"`
+	// FinishReason
+	// stop: API returned complete message,
+	// or a message terminated by one of the stop sequences provided via the stop parameter
+	// length: Incomplete model output due to max_tokens parameter or token limit
+	// function_call: The model decided to call a function
+	// content_filter: Omitted content due to a flag from our content filters
+	// null: API response still in progress or incomplete
+	FinishReason         FinishReason         `json:"finish_reason"`
+	LogProbs             *LogProbs            `json:"logprobs,omitempty"`
+	ContentFilterResults ContentFilterResults `json:"content_filter_results,omitempty"`
+}
+
+type ChatCompletionResponse struct {
+	ID                  string                 `json:"id"`
+	Object              string                 `json:"object"`
+	Created             int64                  `json:"created"`
+	Model               string                 `json:"model"`
+	Choices             []ChatCompletionChoice `json:"choices"`
+	Usage               Usage                  `json:"usage"`
+	SystemFingerprint   string                 `json:"system_fingerprint"`
+	PromptFilterResults []PromptFilterResult   `json:"prompt_filter_results,omitempty"`
+
+	httpHeader
+}
+
 // 重点
 type ChatCompletionStreamResponse struct {
 	ID                  string                       `json:"id"`
@@ -450,7 +502,7 @@ func GPTServer() {
 	router.GET("/api/tags", getModels)
 	router.GET("/api/models", GetGptModels)
 	router.POST("/api/chat", chatHandlerSteam)
-	router.POST("/v1/chat/completions", OpenaiHandlerSteam)
+	router.POST("/v1/chat/completions", OpenaiHandler)
 
 	log.Println("openai proxy server running at :" + strconv.Itoa(XConfig.OpenaiPort))
 	router.Run(":" + strconv.Itoa(XConfig.OpenaiPort))
@@ -485,44 +537,7 @@ func GetGptModels(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func OpenaiHandlerSteam(c *gin.Context) {
-	body, _ := c.GetRawData()
-	var input ChatCompletionRequest
-	err := json.Unmarshal(body, &input)
-	if err != nil {
-		log.Println("Bind "+string(body)+"error:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request" + err.Error()})
-		return
-	}
-	msg := make([]ChatCompletionMessage, 0)
-	for _, m := range input.Messages {
-		switch content := m.Content.(type) {
-		case string:
-			// log.Println("string:", content)
-			msg = append(msg, m)
-		case map[string]string:
-			// log.Println("map[string]string:", content["text"])
-			// m.Content = content["text"]
-			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
-		}
-	}
-	input.Messages = msg
-
-	if XConfig != nil && XConfig.Mock {
-		//c.Header("content-Type", "application/x-ndjson")
-		c.Header("content-Type", "application/json")
-		//c.Header("content-Type", "text/event-stream")
-		c.Header("cache-control", "no-cache")
-		c.Header("Connection", "keep-alive")
-		//c.Writer.WriteHeader(http.StatusOK)
-		//jsonStr, err := json.Marshal(MockGPTResponse())
-		//if err != nil {
-		//	log.Println("Encode error:", err)
-		//}
-		//_, _ = c.Writer.Write(jsonStr)
-		c.JSON(200, MockGPTResponse())
-		return
-	}
+func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 
 	if model, ok := XConfig.Mapping[input.Model]; ok {
 		input.Model = model
@@ -608,7 +623,7 @@ func OpenaiHandlerSteam(c *gin.Context) {
 		}
 		data = data[6:]
 
-		sendLine, err := GptGenResponse([]byte(data), &input)
+		sendLine, err := GptGenResponseStream([]byte(data), &input)
 		log.Println("返回一行:", sendLine)
 		if err != nil {
 			log.Println("Encode error:", err)
@@ -626,6 +641,151 @@ func OpenaiHandlerSteam(c *gin.Context) {
 		}
 		log.Println("info:", info)
 		c.Writer.Flush()
+	}
+
+	if err := scanner.Err(); err != nil {
+		if err != io.EOF {
+			log.Println("scanner error: " + err.Error())
+		}
+	}
+
+}
+
+func OpenaiHandler(c *gin.Context) {
+	body, _ := c.GetRawData()
+	var input ChatCompletionRequest
+	err := json.Unmarshal(body, &input)
+	if err != nil {
+		log.Println("Bind "+string(body)+"error:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request" + err.Error()})
+		return
+	}
+	msg := make([]ChatCompletionMessage, 0)
+	for _, m := range input.Messages {
+		switch content := m.Content.(type) {
+		case string:
+			// log.Println("string:", content)
+			msg = append(msg, m)
+		case map[string]string:
+			// log.Println("map[string]string:", content["text"])
+			// m.Content = content["text"]
+			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
+		}
+	}
+	input.Messages = msg
+
+	if XConfig != nil && XConfig.Mock {
+		//c.Header("content-Type", "application/x-ndjson")
+		c.Header("content-Type", "application/json")
+		//c.Header("content-Type", "text/event-stream")
+		c.Header("cache-control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		//c.Writer.WriteHeader(http.StatusOK)
+		//jsonStr, err := json.Marshal(MockGPTResponse())
+		//if err != nil {
+		//	log.Println("Encode error:", err)
+		//}
+		//_, _ = c.Writer.Write(jsonStr)
+		c.JSON(200, MockGPTResponse())
+		return
+	}
+
+	if input.Stream {
+		OpenaiHandlerSteam(c, input)
+		return
+	}
+
+	if model, ok := XConfig.Mapping[input.Model]; ok {
+		input.Model = model
+	}
+
+	// dify 选择 url
+	models := make([]string, 0)
+	hasModels := make([]string, 0)
+	for model := range XConfig.DifyAppMapProd {
+		models = append(models, model)
+		if model == input.Model {
+			XConfig.IsProd = true
+			break
+		} else {
+			hasModels = append(models, model)
+		}
+	}
+	if len(hasModels) == len(models) {
+		XConfig.IsProd = false
+	}
+
+	url := XConfig.APIURL
+	if XConfig.IsProd {
+		url = XConfig.APIURLProd
+	}
+
+	payload, err := GptGenRequest(&input)
+	if err != nil {
+		log.Println("Encode error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode request" + err.Error()})
+		return
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	if XConfig.ChatType == "dify" {
+		log.Println("current DifyToken:", XConfig.DifyTokenMap[input.Model])
+		req.Header.Set("Authorization", "Bearer "+XConfig.DifyTokenMap[input.Model])
+	} else {
+		req.Header.Set("Authorization", "Bearer "+XConfig.APIKey)
+	}
+	req.Header.Set("x-api-key", XConfig.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发起请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("Request error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "API request failed" + err.Error()})
+		return
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		c.JSON(resp.StatusCode, gin.H{"error": "API request failed code is not 200", "data": string(body)})
+		return
+	}
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, InitialScannerBufferSize), MaxScannerBufferSize)
+	scanner.Split(bufio.ScanLines)
+
+	c.Header("content-Type", "application/json")
+	c.Header("cache-control", "no-cache")
+	c.Header("Connection", "keep-alive")
+
+	for scanner.Scan() {
+		data := scanner.Text()
+		if XConfig.Debug {
+			println(data)
+		}
+		if len(data) < 6 {
+			continue
+		}
+		if data[:5] != "data:" { //&& data[:6] != "[DONE]"
+			continue
+		}
+		data = data[6:]
+
+		sendLine, err := GptGenResponse([]byte(data), &input)
+		if err != nil {
+			log.Println("Encode error:", err)
+			continue
+		}
+		if sendLine == "null" || sendLine == "" {
+			continue
+		}
+		c.JSON(http.StatusOK, sendLine)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -667,6 +827,26 @@ func GptGenResponse(input []byte, req *ChatCompletionRequest) (string, error) {
 	switch XConfig.ChatType {
 	case "dify":
 		return DifyToGptResponse(input, req)
+	case "claude":
+		// re, err := ClaudeBlockToOllamaResponse(input, req)
+		// if err != nil {
+		// 	return nil, nil
+		// }
+		// return json.Marshal(re)
+		return "", nil
+	default:
+		return "", nil
+	}
+
+}
+
+func GptGenResponseStream(input []byte, req *ChatCompletionRequest) (string, error) {
+	if XConfig == nil {
+		return "", nil
+	}
+	switch XConfig.ChatType {
+	case "dify":
+		return DifyToGptResponseStream(input, req)
 	case "claude":
 		// re, err := ClaudeBlockToOllamaResponse(input, req)
 		// if err != nil {

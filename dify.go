@@ -169,6 +169,75 @@ func DifyToGptResponse(input []byte, req *ChatCompletionRequest) (string, error)
 			CompletionTokens: response.Metadata.Usage.CompletionTokens,
 			TotalTokens:      response.Metadata.Usage.TotalTokens,
 		}
+		// str, _ := json.Marshal(&msg)
+		return "", err
+	}
+	if response.Event == "agent_thought" || response.Event == "content_block_start" {
+		if response.Thought != "" {
+			msg := ChatCompletionMessage{
+				Role: "assistant",
+				Content: []ChatMessagePart{
+					{
+						Type: "text",
+						Text: response.Thought,
+					},
+				},
+			}
+			log.Println("Received empty thoughts")
+			resp := ChatCompletionResponse{}
+			resp.ID = chatId
+			resp.Object = "chat.completion"
+			resp.Created = now
+			resp.Choices = []ChatCompletionChoice{
+				{
+					Index:        0,
+					Message:      msg,
+					FinishReason: FinishReasonStop,
+				},
+			}
+			// msg.V = "ok,"
+			// msg.P = "response/content"
+			// msg.O = "append"
+			// str, err := json.Marshal(&msg)
+			//msg = CreateStreamMessage(chatId, now, req, fingerprint, response.Answer, "")
+			str, _ := json.Marshal(&msg)
+			return string(str), err
+		}
+		return "", err
+	}
+	if response.Answer == "" {
+		return "", nil
+	}
+
+	msg = CreateStreamMessage(chatId, now, req, fingerprint, response.Answer, "")
+	// completionBuilder.WriteString(sseData.Content)
+
+	// msg.V = response.Answer
+	// str, err := json.Marshal(&msg)
+	return "", err
+}
+
+func DifyToGptResponseStream(input []byte, req *ChatCompletionRequest) (string, error) {
+	var msg ChatCompletionStreamResponse
+	response := DifyAgentThoughtEvent{}
+	err := json.Unmarshal(input, &response)
+	if err != nil {
+		log.Println("Unmarshal error:", err)
+		return "", nil
+	}
+	now := time.Now().Unix()
+	chatId := strconv.Itoa(int(now))
+	fingerprint := "" //raw body
+	if response.Event == "message_end" {
+		//var spentAmount float64 = 80 // todo 计算花费
+
+		msg = CreateStreamMessage(chatId, now, req, fingerprint, "", "")
+		msg.Choices[0].FinishReason = FinishReasonStop
+		msg.Usage = &Usage{
+			PromptTokens:     response.Metadata.Usage.PromptTokens,
+			CompletionTokens: response.Metadata.Usage.CompletionTokens,
+			TotalTokens:      response.Metadata.Usage.TotalTokens,
+		}
 		str, _ := json.Marshal(&msg)
 		return string(str), err
 	}
@@ -239,7 +308,7 @@ func getDifyToken(model string) error {
 		XConfig.DifyTokenMap = make(map[string]string)
 	}
 	XConfig.DifyTokenMap[model] = token.AccessToken
-	//log.Println("获取到的token:", token.AccessToken)
+	log.Println("获取到的token:", token.AccessToken)
 
 	return nil
 }
