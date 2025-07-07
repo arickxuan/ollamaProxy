@@ -656,6 +656,9 @@ func OpenaiHandler(c *gin.Context) {
 	var common CommonChatGPTRequest
 	var gemini GeminiRequest
 	var input ChatCompletionRequest
+	if XConfig.Debug {
+		log.Println("Body", string(body))
+	}
 	err := json.Unmarshal(body, &common)
 	if err != nil {
 		log.Println("Bind "+string(body)+"error:", err)
