@@ -680,10 +680,25 @@ func OpenaiHandler(c *gin.Context) {
 	if common.Model == "Gemini-2.5-pro" {
 		err = json.Unmarshal(body, &gemini)
 		err = json.Unmarshal(body, &input)
+		if len(gemini.Messages) > 0 {
 
-		for _, m := range gemini.Messages {
-			// log.Println("Role:", m.Role, "Content:", m.Content)
-			msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: m.Parts[0]["text"]})
+			for _, m := range gemini.Messages {
+				// log.Println("Role:", m.Role, "Content:", m.Content)
+				msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: m.Parts[0]["text"]})
+			}
+		} else {
+			err = json.Unmarshal(body, &input)
+			for _, m := range input.Messages {
+				switch content := m.Content.(type) {
+				case string:
+					// log.Println("string:", content)
+					msg = append(msg, m)
+				case map[string]string:
+					// log.Println("map[string]string:", content["text"])
+					// m.Content = content["text"]
+					msg = append(msg, ChatCompletionMessage{Role: m.Role, Content: content["text"]})
+				}
+			}
 		}
 	} else {
 		err = json.Unmarshal(body, &input)
