@@ -63,6 +63,9 @@ func main() {
 	router.POST("/claude/v1/messages", ClaudeHandlerSteam)
 	router.GET("/claude/v1/models", getModels)
 
+	router.POST("/upload/oss", Upload)
+	router.GET("/upload/oss/list", OssList)
+
 	log.Println("Claude proxy server running at :" + strconv.Itoa(XConfig.Port))
 	router.Run(":" + strconv.Itoa(XConfig.Port))
 }

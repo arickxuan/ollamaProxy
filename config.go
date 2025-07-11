@@ -23,6 +23,7 @@ type Config struct {
 	Mapping          map[string]string `json:"mapping"`
 	DifyTokenMap     map[string]string `json:"-"`
 	IsProd           bool              `json:"-"`
+	OSSConfig        OSSConfig         `json:"oss"`
 }
 
 func loadConfig(configPath string) (*Config, error) {
