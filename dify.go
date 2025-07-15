@@ -239,7 +239,8 @@ func DifyToGptResponseStream(input []byte, req *ChatCompletionRequest) (string, 
 			TotalTokens:      response.Metadata.Usage.TotalTokens,
 		}
 		str, _ := json.Marshal(&msg)
-		return string(str), err
+		// return string(str), err
+		return "[DONE]" + string(str), err
 	}
 	if response.Event == "agent_thought" || response.Event == "content_block_start" {
 		if response.Thought == "" {

@@ -623,6 +623,7 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 		}
 		data = data[6:]
 		if data == "[DONE]" {
+			log.Println("DONE")
 			outputMsg := fmt.Sprintf("data: %s\n\n", data)
 			info, err := c.Writer.WriteString(outputMsg)
 			if err != nil {
@@ -643,6 +644,18 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 		if sendLine == "null" || sendLine == "" {
 			continue
 		}
+		if strings.HasPrefix(sendLine, "[DONE]") {
+			sendLine = sendLine[6:]
+			outputMsg := fmt.Sprintf("data: %s\n\n", sendLine)
+			c.Writer.WriteString(outputMsg)
+			c.Writer.Flush()
+			outputMsg = fmt.Sprintf("data: %s\n\n", "[DONE]")
+			c.Writer.WriteString(outputMsg)
+			log.Println("Write DONE")
+			c.Writer.Flush()
+			continue
+
+		}
 		// re := []byte("data: " + str + "\n\n")
 		outputMsg := fmt.Sprintf("data: %s\n\n", sendLine)
 		info, err := c.Writer.WriteString(outputMsg)
@@ -650,7 +663,10 @@ func OpenaiHandlerSteam(c *gin.Context, input ChatCompletionRequest) {
 			log.Println("Write error:", err)
 			continue
 		}
-		log.Println("info:", info)
+
+		if XConfig.Debug {
+			log.Println("info:", info)
+		}
 		c.Writer.Flush()
 	}
 
