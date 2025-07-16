@@ -32,8 +32,9 @@ type GptModel struct {
 
 // List represents the entire structure of the given JSON.
 type GptModelListResp struct {
-	Object string     `json:"object"`
-	Data   []GptModel `json:"data"`
+	Object  string     `json:"object"`
+	Data    []GptModel `json:"data"`
+	Success bool       `json:"success"`
 }
 type Message struct {
 	Role    string      `json:"role"`
@@ -510,8 +511,10 @@ func GPTServer() {
 
 func GetGptModels(c *gin.Context) {
 	models := make([]GptModel, 0)
-	resp := GptModelListResp{}
-	resp.Data = models
+	resp := GptModelListResp{
+		Object:  "list",
+		Success: true,
+	}
 
 	for key := range XConfig.DifyAppMap {
 		family := strings.Split(key, "-")[0]
@@ -534,6 +537,7 @@ func GetGptModels(c *gin.Context) {
 		}
 		models = append(models, gpt)
 	}
+	resp.Data = models
 	c.JSON(http.StatusOK, resp)
 }
 
