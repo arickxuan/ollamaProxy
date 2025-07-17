@@ -52,14 +52,31 @@ func main() {
 		log.Println("收到根路径请求")
 		c.String(http.StatusOK, "Ollama is running ok")
 	})
+
+	// LM Studio
+	router.GET("/api/v0/models", getModels)
+	router.POST("/api/v0/chat/completions", chatHandlerSteam)
+
+	// ollama api
 	router.GET("/api/tags", getModels)
 	router.POST("/api/chat", chatHandlerSteam)
 	router.POST("/v1/chat/completions", chatHandlerSteam)
+
+	//open ai
 	router.POST("/openai/chat/completions", OpenaiHandler)
 	router.POST("/openai/v1/chat/completions", OpenaiHandler)
 	router.GET("/openai/v1/models", GetGptModels)
 	router.POST("/imgreduce/openai/v1/chat/completions", OpenaiHandler)
 	router.GET("/imgreduce/openai/v1/models", GetGptModels)
+
+	router.GET("/imgreduce/ollama", func(c *gin.Context) {
+		log.Println("收到ollama根路径请求")
+		c.String(http.StatusOK, "Ollama is running ok")
+	})
+	router.GET("/imgreduce/ollama/api/tags", getModels)
+	router.POST("/imgreduce/ollama/api/chat", chatHandlerSteam)
+
+	// claude
 	router.POST("/claude/v1/messages", ClaudeHandlerSteam)
 	router.GET("/claude/v1/models", getModels)
 
