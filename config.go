@@ -9,6 +9,7 @@ type Config struct {
 	Port       int    `json:"port"`
 	OpenaiPort int    `json:"openaiPort"`
 	ChatType   string `json:"chatType"`
+	BaseUrl    string `json:"baseUrl"`
 	APIURL     string `json:"apiURL"`
 	APIURLProd string `json:"apiURLProd"`
 	ModelsURL  string `json:"modelsURL"`
@@ -21,8 +22,15 @@ type Config struct {
 	DifyTokenUrl     string            `json:"difyTokenUrl"`
 	DifyTokenUrlProd string            `json:"difyTokenUrlProd"`
 	Mapping          map[string]string `json:"mapping"`
+	ProxyMapping     map[string]string `json:"proxyMapping"`
 	DifyTokenMap     map[string]string `json:"-"`
 	IsProd           bool              `json:"-"`
+	CAFile           string            `json:"caFile"`
+	CAKeyFile        string            `json:"caKeyFile"`
+	Domain           string            `json:"domain"`
+	DomainPemFile    string            `json:"domainPemFile"`
+	DomainKeyFile    string            `json:"domainKeyFile"`
+	IsTls            bool              `json:"isTls"`
 	OSSConfig        OSSConfig         `json:"oss"`
 }
 

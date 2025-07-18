@@ -2,10 +2,8 @@ package main
 
 import (
 	"log"
-	"math/rand"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -78,36 +76,30 @@ func getLMModels(c *gin.Context) {
 		for key := range XConfig.DifyAppMap {
 			family := strings.Split(key, "-")[0]
 			model := map[string]interface{}{
-				"name":        key,
-				"model":       key,
-				"modified_at": time.Now().UTC().Format(time.RFC3339),
-				"size":        rand.Int63n(1e10),
-				"digest":      RandString(12),
-				"details": map[string]interface{}{
-					"format":             "unknown",
-					"family":             family,
-					"families":           []string{family},
-					"parameter_size":     "unknown",
-					"quantization_level": "unknown",
-				},
+				"id":                 key,
+				"model":              "model",
+				"type":               "llm",
+				"publisher":          family,
+				"arch":               "llama",
+				"compatibility_type": "gguf",
+				"quantization":       "Q4_K_M",
+				"state":              "not-loaded",
+				"max_context_length": 131072,
 			}
 			models = append(models, model)
 		}
 		for key := range XConfig.DifyAppMapProd {
 			family := strings.Split(key, "-")[0]
 			model := map[string]interface{}{
-				"name":        key,
-				"model":       key,
-				"modified_at": time.Now().UTC().Format(time.RFC3339),
-				"size":        rand.Int63n(1e10),
-				"digest":      RandString(12),
-				"details": map[string]interface{}{
-					"format":             "unknown",
-					"family":             family,
-					"families":           []string{family},
-					"parameter_size":     "unknown",
-					"quantization_level": "unknown",
-				},
+				"id":                 key,
+				"model":              "model",
+				"type":               "llm",
+				"publisher":          family,
+				"arch":               "llama",
+				"compatibility_type": "gguf",
+				"quantization":       "Q4_K_M",
+				"state":              "not-loaded",
+				"max_context_length": 131072,
 			}
 			models = append(models, model)
 		}
@@ -115,7 +107,7 @@ func getLMModels(c *gin.Context) {
 		var models []map[string]interface{}
 		list, err := getModelsByUrl()
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"models": models})
+			c.JSON(http.StatusOK, gin.H{"object": "list", "data": models})
 		}
 		for _, v := range list.Data {
 			family := ""
@@ -130,21 +122,18 @@ func getLMModels(c *gin.Context) {
 			}
 
 			model := map[string]interface{}{
-				"name":        v.ID,
-				"model":       v.ID,
-				"modified_at": time.Now().UTC().Format(time.RFC3339),
-				"size":        rand.Int63n(1e10),
-				"digest":      RandString(12),
-				"details": map[string]interface{}{
-					"format":             "unknown",
-					"family":             family,
-					"families":           []string{family},
-					"parameter_size":     "unknown",
-					"quantization_level": "unknown",
-				},
+				"id":                 v.ID,
+				"model":              "model",
+				"type":               "llm",
+				"publisher":          family,
+				"arch":               "llama",
+				"compatibility_type": "gguf",
+				"quantization":       "Q4_K_M",
+				"state":              "not-loaded",
+				"max_context_length": 131072,
 			}
 			models = append(models, model)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"models": models})
+	c.JSON(http.StatusOK, gin.H{"object": "list", "data": models})
 }

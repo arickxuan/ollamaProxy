@@ -104,7 +104,7 @@ func UploadFile(config OSSConfig, filePath string, objectName string) (string, e
 
 	// 构造访问URL
 	url := fmt.Sprintf("https://%s.%s/%s", config.BucketName, config.Endpoint, objectName)
-	log.Printf("文件上传成功: %s, 访问URL: %s", filePath, url, result)
+	log.Printf("文件上传成功: %s, 访问URL: %s re:%v", filePath, url, result)
 
 	return url, nil
 }

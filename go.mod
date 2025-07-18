@@ -5,6 +5,8 @@ go 1.21.5
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mattn/go-sqlite3 v1.14.28
+	golang.org/x/term v0.20.0
+	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
 require golang.org/x/time v0.4.0 // indirect

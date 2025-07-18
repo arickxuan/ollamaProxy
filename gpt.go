@@ -537,6 +537,16 @@ func GetGptModels(c *gin.Context) {
 		}
 		models = append(models, gpt)
 	}
+	for key := range XConfig.Mapping {
+		family := strings.Split(key, "-")[0]
+		gpt := GptModel{
+			ID:      key,
+			Object:  "model",
+			Created: 0,
+			OwnedBy: family,
+		}
+		models = append(models, gpt)
+	}
 	resp.Data = models
 	c.JSON(http.StatusOK, resp)
 }
