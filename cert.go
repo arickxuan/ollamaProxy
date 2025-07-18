@@ -50,12 +50,15 @@ func checkOrGenerateCertificate(domain string, config *Config) (tls.Certificate,
 
 func generateCertificate(domain string, config *Config, genFile bool, domains []string) (tls.Certificate, error) {
 	// 生成私钥
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	var privateKey *rsa.PrivateKey
+	var err error
 	if genFile {
 		privateKey, err = generateCAPrivateKey(config.DomainKeyFile)
 		if err != nil {
 			return tls.Certificate{}, fmt.Errorf("路径: %s,生成私钥失败: %v", config.DomainKeyFile, err)
 		}
+	} else {
+		privateKey, err = rsa.GenerateKey(rand.Reader, 2048)
 	}
 
 	domainArr := []string{domain}
