@@ -27,5 +27,6 @@ go.work.sum
 snake/*
 
 .kiro/*
+cert/*
 config.json
 config-ok.json
